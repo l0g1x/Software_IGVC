@@ -7,6 +7,7 @@ import rospy
 from lane_detection import LaneDetection
 # from line_detection.cfg import LineDetectionConfig
 from sensor_msgs.msg import PointCloud
+import sensor_msgs
 from sensor_msgs.msg import CompressedImage
 from geometry_msgs.msg import Point
 import rospkg
@@ -29,7 +30,72 @@ import std_msgs.msg
 class PointcloudPublisher(LaneDetection):
 
     def __init__(self, namespace, node_name):
-        LaneDetection.__init__(self, namespace, node_name)
+#        LaneDetection.__init__(self, namespace, node_name)
+
+        # removes trailing slash in namespace
+        if (namespace.endswith("/")):
+            namespace = namespace[:-1]
+
+        # grab parameters from launch file
+        self.subscriber_image_topic = "/threshold/line_image/compressed" 
+       
+        self.publisher_image_topic = rospy.get_param(
+            namespace + node_name + "/publisher_image_topic",
+            "/line_image/compressed"
+        )
+        self.buffer_size = rospy.get_param(
+            namespace + node_name + "/buffer_size",
+            52428800
+        )
+        self.package_path = rospkg.RosPack().get_path('line_detection')
+
+        # top-left x coordinate of ROI rectangle
+        self.roi_top_left_x = rospy.get_param(
+            namespace + node_name + '/roi_x',
+            0
+        )
+        # top-left y coordinate of ROI rectangle
+        self.roi_top_left_y = rospy.get_param(
+            namespace + node_name + '/roi_y',
+            # self.camera_info.height / 2
+            0
+        )
+        # assert(self.roi_x >= 0)
+        # assert(self.roi_x < self.camera_info.width)
+        # assert(self.roi_y >= 0)
+        # assert(self.roi_y < self.camera_info.height)
+
+        # width of ROI rectangle
+        self.roi_width = rospy.get_param(
+            namespace + node_name + '/roi_width',
+            960
+        )
+        # height of ROI rectangle
+        self.roi_height = rospy.get_param(
+            namespace + node_name + '/roi_height',
+            480
+        )
+
+        # initialize ROS stuff
+
+        # set publisher and subscriber
+
+        # publisher for image of line pixels (only for debugging, not used in
+        # map)
+        self.line_image_pub = rospy.Publisher(
+            namespace + "/" + node_name + self.publisher_image_topic,
+            sensor_msgs.msg.CompressedImage,
+            queue_size=1
+        )
+
+        # subscriber for ROS image topic
+        self.image_sub = rospy.Subscriber(
+            self.subscriber_image_topic,
+            CompressedImage,
+            self.image_callback,
+            queue_size=1,
+            buff_size=self.buffer_size
+        )
 
         # remove this publisher that was inherited from LaneDetection
         self.line_image_pub.unregister()
